@@ -326,7 +326,18 @@
             });
 
             const stockPileDiv = document.getElementById('stock-pile');
-            stockPileDiv.textContent = `Stock Pile: ${gameState.stock_pile.length} cards`;
+            stockPileDiv.innerHTML = `Stock Pile: `;
+            if (gameState.stock_pile.length > 0) {
+                const cardImg = document.createElement('img');
+                cardImg.src = '/assets/cards/red-card-back.png';
+                cardImg.alt = 'Card Back';
+                cardImg.width = 70;
+                cardImg.title = `${gameState.stock_pile.length} cards remaining`;
+                stockPileDiv.appendChild(cardImg);
+                stockPileDiv.innerHTML += ` (${gameState.stock_pile.length} cards)`;
+            } else {
+                stockPileDiv.textContent += 'Empty';
+            }
 
             const discardPileDiv = document.getElementById('discard-pile');
             discardPileDiv.innerHTML = `Discard Pile: `;
