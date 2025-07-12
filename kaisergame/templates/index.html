@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Kaiser Game</title>
+</head>
+<body>
+    <h1>Kaiser Game</h1>
+    <h2 id="player-turn"></h2>
+    <div id="player-actions"></div>
+    <h2>Player 0 Hand</h2>
+    <div id="player0-hand"></div>
+    <h2>Player 1 Hand</h2>
+    <div id="player1-hand"></div>
+    <h2>Table</h2>
+    <div id="table"></div>
+    <script>
+        let previousGameState = null;
+        let selectedHandIndex = null;
+        let selectedTableIndex = null;
+
+        function compareArrays(array1, array2) {
+            if (array1.length !== array2.length) {
+                return false;
+            }
+            for (let i = 0; i < array1.length; i++) {
+                if (array1[i] !== array2[i]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        async function updateGame() {
+            const response = await fetch('/game_state');
+            const gameState = await response.json();
+
+            if (previousGameState === null ||
+                !compareArrays(previousGameState.hands[0], gameState.hands[0]) ||
+                !compareArrays(previousGameState.hands[1], gameState.hands[1]) ||
+                !compareArrays(previousGameState.table, gameState.table) ||
+                previousGameState.player_turn !== gameState.player_turn ||
+                !compareArrays(previousGameState.actions, gameState.actions)) {
+
+                // Display player turn
+                document.getElementById('player-turn').textContent = `Player ${gameState.player_turn}'s turn`;
+
+                // Display buttons
+                const playerActionsDiv = document.getElementById('player-actions');
+                playerActionsDiv.innerHTML = '';
+                gameState.actions.forEach(action => {
+                    const button = document.createElement('button');
+                    button.textContent = action;
+                    button.addEventListener('click', () => handleAction(action));
+                    playerActionsDiv.appendChild(button);
+                });
+
+                // Update player 0 hand
+                const player0HandDiv = document.getElementById('player0-hand');
+                player0HandDiv.innerHTML = '';
+                gameState.hands[0].forEach((card, index) => {
+                    const img = document.createElement('img');
+                    img.src = `/assets/playing_cards/${card}.png`;
+                    img.width = 50;
+                    img.addEventListener('click', () => selectHandCard(index));
+                    player0HandDiv.appendChild(img);
+                });
+
+                // Update player 1 hand
+                const player1HandDiv = document.getElementById('player1-hand');
+                player1HandDiv.innerHTML = '';
+                gameState.hands[1].forEach((card, index) => {
+                    const img = document.createElement('img');
+                    img.src = `/assets/playing_cards/${card}.png`;
+                    img.width = 50;
+                    img.addEventListener('click', () => selectHandCard(index));
+                    player1HandDiv.appendChild(img);
+                });
+
+                // Update table
+                const tableDiv = document.getElementById('table');
+                tableDiv.innerHTML = '';
+                gameState.table.forEach((card, index) => {
+                    const img = document.createElement('img');
+                    img.src = `/assets/playing_cards/${card}.png`;
+                    img.width = 50;
+                    img.addEventListener('click', () => selectTableCard(index));
+                    tableDiv.appendChild(img);
+                });
+
+                previousGameState = gameState;
+            } else if (previousGameState === null){
+                previousGameState = gameState;
+            }
+        }
+
+        function selectHandCard(index) {
+            selectedHandIndex = index;
+            console.log(`Selected hand card index: ${index}`);
+        }
+
+        function selectTableCard(index) {
+            selectedTableIndex = index;
+            console.log(`Selected table card index: ${index}`);
+        }
+
+        async function handleAction(action) {
+            console.log(`Action: ${action}, hand_index: ${selectedHandIndex}, table_index: ${selectedTableIndex}`);
+            if (selectedHandIndex === null) {
+                console.log("Please select a card from your hand.");
+                return;
+            }
+
+            let tableIndex = selectedTableIndex;
+            if (action === "Discard" && selectedTableIndex === null) {
+                tableIndex = 3;
+            }
+
+            if (action === "Make Match" && selectedTableIndex === null) {
+                console.log("Please select a card from the table.");
+                return;
+            }
+
+            const response = await fetch(`/${action.toLowerCase().replace(" ", "_")}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    hand_index: selectedHandIndex,
+                    table_index: tableIndex
+                })
+            });
+
+            if (response.ok) {
+                selectedHandIndex = null;
+                selectedTableIndex = null;
+                updateGame();
+            } else {
+                console.error(`Error performing action: ${action}`);
+            }
+        }
+
+        updateGame();
+        setInterval(updateGame, 1000);
+    </script>
+</body>
+</html>

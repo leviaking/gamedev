@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gin Rummy</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .card {
+            width: 70px;
+            height: auto;
+            margin: 5px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .card.selected {
+            border: 2px solid red;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .hand {
+            display: flex;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            margin-bottom: 10px;
+            padding: 5px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background-color: #f8f8f8;
+        }
+        .pile {
+            margin-right: 20px;
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background-color: #f8f8f8;
+            display: inline-block;
+            vertical-align: top;
+            text-align: center;
+        }
+        .button-group {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .game-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .disabled {
+            opacity: 0.3; /* Reduced opacity for more noticeable effect */
+            cursor: not-allowed;
+            filter: grayscale(50%); /* Added grayscale filter */
+        }
+        .disabled:hover {
+            opacity: 0.3; /* Keep opacity the same on hover */
+            filter: grayscale(50%);
+        }
+    </style>
+    <script>
+        let gameState = null;
+        let playerId = null;
+        let selectedCard = null;
+        let selectedMeld = null;
+        let player_actions = {};
+        let numberOfPlayers = 2;
+        let playerNumber = null;
+
+        async function startGame() {
+            const response = await fetch(`/start_game/${numberOfPlayers}`, { method: 'POST' });
+            if (response.ok) {
+                const data = await response.json();
+                console.log(data.message);
+                await getPlayerId();
+                await updateGameState();
+            } else {
+                console.error('Failed to start game:', await response.text());
+            }
+        }
+
+        async function getPlayerId() {
+             if (!playerId) {
+                playerId = localStorage.getItem('playerId');
+                if (!playerId) {
+                    playerId = `player-${Math.random().toString(36).substring(2, 15)}`;
+                    localStorage.setItem('playerId', playerId);
+                }
+             }
+        }
+
+        async function updateGameState() {
+            const response = await fetch('/game_state', {
+                headers: {
+                    'Player-Id': playerId
+                }
+            });
+            if (response.ok) {
+                gameState = await response.json();
+                if (gameState.playerNumber === null) {
+                    gameState.playerNumber = gameState.current_player;
+                }
+                player_actions = gameState.player_actions;
+
+                console.log("Server game_state:", gameState);
+                console.log("Client player_actions before render:", player_actions);
+
+                renderGameState();
+            } else {
+                console.error('Failed to fetch game state');
+                if (!gameState) {
+                    await startGame();
+                }
+            }
+        }
+
+        function selectCard(card) {
+            if (gameState.current_player === gameState.playerNumber) {
+                selectedCard = card;
+                renderGameState();
+            }
+        }
+
+        function selectMeld(index) {
+            if (gameState.current_player === gameState.playerNumber) {
+                selectedMeld = index;
+                renderGameState();
+            }
+        }
+
+        async function drawStock() {
+            if (gameState.current_player === gameState.playerNumber) {
+                const response = await fetch('/draw_stock', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ player: gameState.playerNumber })
+                });
+                if (response.ok) {
+                    await updateGameState();
+                } else {
+                    console.error('Failed to draw from stock:', await response.text());
+                }
+            }
+        }
+
+        async function drawDiscard() {
+            if (gameState.current_player === gameState.playerNumber) {
+                const response = await fetch('/draw_discard', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ player: gameState.playerNumber })
+                });
+                if (response.ok) {
+                    await updateGameState();
+                } else {
+                    console.error('Failed to draw from discard:', await response.text());
+                }
+            }
+        }
+
+        async function discardCard() {
+            if (gameState.current_player === gameState.playerNumber && selectedCard) {
+                const response = await fetch('/discard', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ player: gameState.playerNumber, card: selectedCard })
+                });
+                if (response.ok) {
+                    selectedCard = null;
+                    await updateGameState();
+                } else {
+                    console.error('Failed to discard:', await response.text());
+                }
+            }
+        }
+
+        async function meldCards() {
+             if (gameState.current_player === gameState.playerNumber && selectedCard) {
+                const response = await fetch('/meld', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ player: gameState.playerNumber, cards: [selectedCard] })
+                });
+                if (response.ok) {
+                    selectedCard = null;
+                    await updateGameState();
+                } else {
+                    console.error("Failed to meld cards", await response.text());
+                }
+             }
+        }
+
+        async function layOffCard() {
+            if (gameState.current_player === gameState.playerNumber && selectedCard && selectedMeld !== null) {
+                const response = await fetch('/lay_off', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ player: gameState.playerNumber, card: selectedCard, meld_index: selectedMeld })
+                });
+                if (response.ok) {
+                    selectedCard = null;
+                    selectedMeld = null;
+                    await updateGameState();
+                } else {
+                    console.error("Failed to lay off card", await response.text());
+                }
+            }
+        }
+
+        function renderGameState() {
+            if (!gameState) return;
+
+            const currentPlayer = gameState.current_player;
+            const playerNumber = gameState.playerNumber;
+
+            let turnText = `Player ${currentPlayer}'s turn. `;
+
+             if (currentPlayer === playerNumber) {
+                if (!player_actions[currentPlayer]) {
+                    turnText += "Draw a card.";
+                } else if (player_actions[currentPlayer] === "draw") {
+                    turnText += "Meld or discard a card.";
+                } else {
+                    turnText += "Discard a card.";
+                }
+            } else {
+                turnText += "Waiting for other player.";
+            }
+
+            document.getElementById('player-turn').textContent = turnText;
+            document.getElementById('player-number').textContent = playerNumber;
+
+
+            const player0HandDiv = document.getElementById('player-0-hand');
+            const player1HandDiv = document.getElementById('player-1-hand');
+            player0HandDiv.innerHTML = `Player 0: `;
+            player1HandDiv.innerHTML = `Player 1: `;
+
+            gameState.hands.forEach((hand, playerIndex) => {
+                const handDiv = playerIndex === 0 ? player0HandDiv : player1HandDiv;
+                hand.forEach(card => {
+                    const cardImg = document.createElement('img');
+                    cardImg.src = `/assets/cards/${card}.png`;
+                    cardImg.alt = card;
+                    cardImg.width = 70;
+                    if (card === selectedCard) {
+                        cardImg.classList.add('selected');
+                    } else {
+                        cardImg.classList.remove('selected');
+                    }
+                    cardImg.addEventListener('click', () => selectCard(card));
+                    handDiv.appendChild(cardImg);
+                });
+            });
+
+            const stockPileDiv = document.getElementById('stock-pile');
+            stockPileDiv.textContent = `Stock Pile: ${gameState.stock_pile.length} cards`;
+
+            const discardPileDiv = document.getElementById('discard-pile');
+            discardPileDiv.innerHTML = `Discard Pile: `;
+            if (gameState.discard_pile.length > 0) {
+                const topCard = gameState.discard_pile[gameState.discard_pile.length - 1];
+                const cardImg = document.createElement('img');
+                cardImg.src = `/assets/cards/${topCard}.png`;
+                cardImg.alt = topCard;
+                cardImg.width = 70;
+                discardPileDiv.appendChild(cardImg);
+            } else {
+                discardPileDiv.textContent += 'Empty';
+            }
+
+             const meldsDiv = document.getElementById('melds');
+            meldsDiv.innerHTML = '';
+            gameState.melds.forEach((meld, index) => {
+                const meldDiv = document.createElement('div');
+                meldDiv.textContent = `Meld ${index}: `;
+                if (selectedMeld === index) {
+                     meldDiv.style.border = '2px solid green';
+                } else {
+                    meldDiv.style.border = '';
+                }
+                meld.forEach(card => {
+                    const cardImg = document.createElement('img');
+                    cardImg.src = `/assets/cards/${card}.png`;
+                    cardImg.alt = card;
+                    cardImg.width = 50;
+                    meldDiv.appendChild(cardImg);
+                });
+                meldDiv.addEventListener('click', () => selectMeld(index));
+                meldsDiv.appendChild(meldDiv);
+            });
+
+            player_actions = gameState.player_actions;
+
+            // Corrected button disabling and styling:
+            const isCurrentPlayerTurn =  gameState.current_player === playerNumber;
+            const allButtonsDisabled = !isCurrentPlayerTurn;
+
+            const drawStockButton = document.getElementById('draw-stock');
+            const drawDiscardButton = document.getElementById('draw-discard');
+            const discardButton = document.getElementById('discard');
+            const meldButton = document.getElementById('meld');
+            const layOffButton = document.getElementById('lay-off');
+
+
+            drawStockButton.disabled = allButtonsDisabled;
+            drawDiscardButton.disabled = allButtonsDisabled;
+            discardButton.disabled = allButtonsDisabled || (isCurrentPlayerTurn && player_actions[gameState.current_player] !== "draw");
+            meldButton.disabled = allButtonsDisabled;
+            layOffButton.disabled = allButtonsDisabled;
+
+            drawStockButton.classList.toggle('disabled', allButtonsDisabled);
+            drawDiscardButton.classList.toggle('disabled', allButtonsDisabled);
+            discardButton.classList.toggle('disabled', allButtonsDisabled || (isCurrentPlayerTurn && player_actions[gameState.current_player] !== "draw"));
+            meldButton.classList.toggle('disabled', allButtonsDisabled);
+            layOffButton.classList.toggle('disabled', allButtonsDisabled);
+
+
+            console.log(`Current Player: ${gameState.current_player}, Player Number: ${playerNumber}, allButtonsDisabled: ${allButtonsDisabled}, player_actions:`, player_actions);
+        }
+
+        (async () => {
+            await getPlayerId();
+            await startGame();
+            setInterval(updateGameState, 2000);
+        })();
+    </script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="game-area">
+        <h1 class="text-2xl font-semibold mb-4 text-center">Gin Rummy</h1>
+        <div id="player-number" class="mb-2 text-center"></div>
+        <div id="player-turn" class="mb-4 text-center"></div>
+        <div id="player-0-hand" class="hand"></div>
+        <div id="player-1-hand" class="hand"></div>
+        <div style="display: flex; justify-content: center;">
+            <div id="stock-pile" class="pile"></div>
+            <div id="discard-pile" class="pile"></div>
+        </div>
+        <div id="melds" class="mt-4"></div>
+        <div class="button-group">
+            <button id="draw-stock" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" onclick="drawStock()">Draw from Stock</button>
+            <button id="draw-discard" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded" onclick="drawDiscard()">Draw from Discard</button>
+            <button id="discard" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded" onclick="discardCard()">Discard</button>
+            <button id="meld" class="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded" onclick="meldCards()">Meld</button>
+            <button id="lay-off" class="bg-yellow-500 hover:bg-yellow-700 text-gray-900 font-bold py-2 px-4 rounded" onclick="layOffCard()">Lay Off</button>
+        </div>
+    </div>
+</body>
+</html>
