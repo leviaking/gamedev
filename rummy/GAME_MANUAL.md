@@ -204,10 +204,6 @@ rummy/
 - 🔄 Custom card themes
 - 🔄 Mobile app version
 
-## **Enjoy the Game!**
-Rummy combines the thrill of card games with strategic thinking. Whether you're a beginner learning the basics or an experienced player perfecting your strategy, every game offers new challenges and opportunities to improve your skills.
-
-**Good luck and happy playing!** 🎉
 
 ---
 
