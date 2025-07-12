@@ -1,0 +1,1 @@
+This repo is a sandbox where I am exploring reinforcement learning, RL agents, game development and related concepts like simulations and play testing; it will contain relevant game files, images and descriptions as well as files related to Godot, Unreal and Unity game engines, and other assets like Blender files.
