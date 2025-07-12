@@ -1,0 +1,1 @@
+Work in progress. This directory is for development of "Squirrel Game" (working title). This includes an implementation of the game, along with incorporation of AI agents and reinforcement learning for play testing the game and balancing scoring and game mechanics.
