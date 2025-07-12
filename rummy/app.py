@@ -101,10 +101,14 @@ def index():
 @app.route('/start_game/<int:num_players>', methods=['POST'])
 def start_game(num_players):
     global game_state, player_ids
+    # Deal cards and set up initial discard pile
+    hands = deal_cards(num_players)
+    initial_discard = stock_pile.pop(0) if stock_pile else None
+    
     game_state = {
-        'hands': deal_cards(num_players),
+        'hands': hands,
         'stock_pile': stock_pile,
-        'discard_pile': [],
+        'discard_pile': [initial_discard] if initial_discard else [],
         'melds': [],
         'current_player': 0,
         'player_actions': {0: None, 1: None},
@@ -155,7 +159,16 @@ def draw_stock():
             print(f'Server draw_stock, player_actions: {game_state["player_actions"]}')
             return jsonify({'message': 'Card drawn from stock'})
         else:
-            return jsonify({'error': 'Stock pile is empty'})
+            # Stock pile is empty - game should end
+            game_state['game_over'] = True
+            # Calculate final scores
+            for i, hand in enumerate(game_state['hands']):
+                hand_score = calculate_hand_score(hand)
+                game_state['scores'][i] += hand_score
+            # Player with lowest score wins
+            winner = 0 if game_state['scores'][0] <= game_state['scores'][1] else 1
+            game_state['winner'] = winner
+            return jsonify({'error': 'Stock pile is empty - Game Over!', 'game_over': True})
     else:
         return jsonify({'error': 'Not your turn'})
 
@@ -196,7 +209,13 @@ def discard():
                 game_state['game_over'] = True
                 game_state['winner'] = player
                 game_state['scores'][player] += 100  # Bonus for winning
-                return jsonify({'message': 'Card discarded - Game Over! You won!'})
+                
+                # Calculate loser's penalty
+                other_player = 1 if player == 0 else 0
+                loser_penalty = calculate_hand_score(game_state['hands'][other_player])
+                game_state['scores'][other_player] += loser_penalty
+                
+                return jsonify({'message': f'Card discarded - Game Over! You won! Loser gets {loser_penalty} penalty points.'})
             
             next_turn()
             return jsonify({'message': 'Card discarded'})
