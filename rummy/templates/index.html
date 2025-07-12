@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gin Rummy</title>
+    <title>Rummy</title>
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <style>
@@ -67,17 +67,20 @@
     <script>
         let gameState = null;
         let playerId = null;
-        let selectedCard = null;
+        let selectedCards = [];  // Changed to array for multiple card selection
         let selectedMeld = null;
         let player_actions = {};
         let numberOfPlayers = 2;
         let playerNumber = null;
+        let gameStats = null;
 
         async function startGame() {
             const response = await fetch(`/start_game/${numberOfPlayers}`, { method: 'POST' });
             if (response.ok) {
                 const data = await response.json();
                 console.log(data.message);
+                selectedCards = [];  // Clear selected cards
+                selectedMeld = null;  // Clear selected meld
                 await getPlayerId();
                 await updateGameState();
             } else {
@@ -111,6 +114,7 @@
                 console.log("Server game_state:", gameState);
                 console.log("Client player_actions before render:", player_actions);
 
+                await updateGameStats();
                 renderGameState();
             } else {
                 console.error('Failed to fetch game state');
@@ -120,9 +124,21 @@
             }
         }
 
+        async function updateGameStats() {
+            const response = await fetch('/game_stats');
+            if (response.ok) {
+                gameStats = await response.json();
+            }
+        }
+
         function selectCard(card) {
             if (gameState.current_player === gameState.playerNumber) {
-                selectedCard = card;
+                const index = selectedCards.indexOf(card);
+                if (index > -1) {
+                    selectedCards.splice(index, 1);  // Remove card if already selected
+                } else {
+                    selectedCards.push(card);  // Add card if not selected
+                }
                 renderGameState();
             }
         }
@@ -169,57 +185,73 @@
         }
 
         async function discardCard() {
-            if (gameState.current_player === gameState.playerNumber && selectedCard) {
+            if (gameState.current_player === gameState.playerNumber && selectedCards.length === 1) {
                 const response = await fetch('/discard', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ player: gameState.playerNumber, card: selectedCard })
+                    body: JSON.stringify({ player: gameState.playerNumber, card: selectedCards[0] })
                 });
                 if (response.ok) {
-                    selectedCard = null;
+                    selectedCards = [];
                     await updateGameState();
                 } else {
                     console.error('Failed to discard:', await response.text());
                 }
+            } else if (selectedCards.length === 0) {
+                alert('Please select a card to discard');
+            } else {
+                alert('You can only discard one card at a time');
             }
         }
 
         async function meldCards() {
-             if (gameState.current_player === gameState.playerNumber && selectedCard) {
+             if (gameState.current_player === gameState.playerNumber && selectedCards.length >= 3) {
                 const response = await fetch('/meld', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ player: gameState.playerNumber, cards: [selectedCard] })
+                    body: JSON.stringify({ player: gameState.playerNumber, cards: selectedCards })
                 });
                 if (response.ok) {
-                    selectedCard = null;
+                    selectedCards = [];
                     await updateGameState();
                 } else {
-                    console.error("Failed to meld cards", await response.text());
+                    const errorData = await response.json();
+                    alert('Failed to meld cards: ' + errorData.error);
                 }
+             } else if (selectedCards.length === 0) {
+                alert('Please select at least 3 cards to meld');
+             } else {
+                alert('You must select at least 3 cards to meld');
              }
         }
 
         async function layOffCard() {
-            if (gameState.current_player === gameState.playerNumber && selectedCard && selectedMeld !== null) {
+            if (gameState.current_player === gameState.playerNumber && selectedCards.length === 1 && selectedMeld !== null) {
                 const response = await fetch('/lay_off', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ player: gameState.playerNumber, card: selectedCard, meld_index: selectedMeld })
+                    body: JSON.stringify({ player: gameState.playerNumber, card: selectedCards[0], meld_index: selectedMeld })
                 });
                 if (response.ok) {
-                    selectedCard = null;
+                    selectedCards = [];
                     selectedMeld = null;
                     await updateGameState();
                 } else {
-                    console.error("Failed to lay off card", await response.text());
+                    const errorData = await response.json();
+                    alert('Failed to lay off card: ' + errorData.error);
                 }
+            } else if (selectedCards.length === 0) {
+                alert('Please select a card to lay off');
+            } else if (selectedCards.length > 1) {
+                alert('You can only lay off one card at a time');
+            } else if (selectedMeld === null) {
+                alert('Please select a meld to lay off onto');
             }
         }
 
@@ -246,6 +278,30 @@
             document.getElementById('player-turn').textContent = turnText;
             document.getElementById('player-number').textContent = playerNumber;
 
+            // Update game statistics
+            if (gameStats) {
+                let statsText = '';
+                if (gameStats.game_over) {
+                    statsText = `Game Over! Player ${gameStats.winner} wins! `;
+                }
+                statsText += `Scores: P0: ${gameStats.scores[0]}, P1: ${gameStats.scores[1]} | `;
+                
+                // Show hand scores more clearly
+                if (gameStats.game_over) {
+                    // When game is over, show both hand scores for final scoring
+                    statsText += `Final Hand Scores: P0: ${gameStats.hand_scores[0]}, P1: ${gameStats.hand_scores[1]} | `;
+                } else {
+                    // During game, only show current player's hand score
+                    const currentPlayerScore = gameStats.hand_scores[gameState.current_player];
+                    statsText += `Your Hand Score: ${currentPlayerScore} | `;
+                }
+                
+                statsText += `Melds: ${gameStats.total_melds} | `;
+                statsText += `Stock: ${gameStats.cards_in_stock} | `;
+                statsText += `Discard: ${gameStats.cards_in_discard}`;
+                document.getElementById('game-stats').textContent = statsText;
+            }
+
 
             const player0HandDiv = document.getElementById('player-0-hand');
             const player1HandDiv = document.getElementById('player-1-hand');
@@ -259,7 +315,7 @@
                     cardImg.src = `/assets/cards/${card}.png`;
                     cardImg.alt = card;
                     cardImg.width = 70;
-                    if (card === selectedCard) {
+                    if (selectedCards.includes(card)) {
                         cardImg.classList.add('selected');
                     } else {
                         cardImg.classList.remove('selected');
@@ -317,19 +373,21 @@
             const discardButton = document.getElementById('discard');
             const meldButton = document.getElementById('meld');
             const layOffButton = document.getElementById('lay-off');
-
+            const newGameButton = document.getElementById('new-game');
 
             drawStockButton.disabled = allButtonsDisabled;
             drawDiscardButton.disabled = allButtonsDisabled;
             discardButton.disabled = allButtonsDisabled || (isCurrentPlayerTurn && player_actions[gameState.current_player] !== "draw");
             meldButton.disabled = allButtonsDisabled;
             layOffButton.disabled = allButtonsDisabled;
+            newGameButton.disabled = false;  // New game button is always enabled
 
             drawStockButton.classList.toggle('disabled', allButtonsDisabled);
             drawDiscardButton.classList.toggle('disabled', allButtonsDisabled);
             discardButton.classList.toggle('disabled', allButtonsDisabled || (isCurrentPlayerTurn && player_actions[gameState.current_player] !== "draw"));
             meldButton.classList.toggle('disabled', allButtonsDisabled);
             layOffButton.classList.toggle('disabled', allButtonsDisabled);
+            newGameButton.classList.remove('disabled');  // New game button is never disabled
 
 
             console.log(`Current Player: ${gameState.current_player}, Player Number: ${playerNumber}, allButtonsDisabled: ${allButtonsDisabled}, player_actions:`, player_actions);
@@ -344,9 +402,13 @@
 </head>
 <body class="bg-gray-100 p-8">
     <div class="game-area">
-        <h1 class="text-2xl font-semibold mb-4 text-center">Gin Rummy</h1>
+        <h1 class="text-2xl font-semibold mb-4 text-center">Rummy</h1>
         <div id="player-number" class="mb-2 text-center"></div>
         <div id="player-turn" class="mb-4 text-center"></div>
+        <div id="game-stats" class="mb-4 text-center text-sm"></div>
+        <div class="text-xs text-gray-600 text-center mb-4">
+            💡 <strong>Hand Score</strong>: Total value of cards in your hand (2-10 = face value, J/Q/K = 10, A = 1)
+        </div>
         <div id="player-0-hand" class="hand"></div>
         <div id="player-1-hand" class="hand"></div>
         <div style="display: flex; justify-content: center;">
@@ -360,6 +422,7 @@
             <button id="discard" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded" onclick="discardCard()">Discard</button>
             <button id="meld" class="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded" onclick="meldCards()">Meld</button>
             <button id="lay-off" class="bg-yellow-500 hover:bg-yellow-700 text-gray-900 font-bold py-2 px-4 rounded" onclick="layOffCard()">Lay Off</button>
+            <button id="new-game" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded" onclick="startGame()">New Game</button>
         </div>
     </div>
 </body>
