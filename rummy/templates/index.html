@@ -261,7 +261,7 @@
             const currentPlayer = gameState.current_player;
             const playerNumber = gameState.playerNumber;
 
-            let turnText = `Player ${currentPlayer}'s turn. `;
+            let turnText = `Player ${currentPlayer + 1}'s turn. `;
 
              if (currentPlayer === playerNumber) {
                 if (!player_actions[currentPlayer]) {
@@ -276,20 +276,20 @@
             }
 
             document.getElementById('player-turn').textContent = turnText;
-            document.getElementById('player-number').textContent = playerNumber;
+            document.getElementById('player-number').textContent = `You are Player ${playerNumber + 1}`;
 
             // Update game statistics
             if (gameStats) {
                 let statsText = '';
                 if (gameStats.game_over) {
-                    statsText = `Game Over! Player ${gameStats.winner} wins! `;
+                    statsText = `Game Over! Player ${gameStats.winner + 1} wins! `;
                 }
-                statsText += `Scores: P0: ${gameStats.scores[0]}, P1: ${gameStats.scores[1]} | `;
+                statsText += `Scores: P1: ${gameStats.scores[0]}, P2: ${gameStats.scores[1]} | `;
                 
                 // Show hand scores more clearly
                 if (gameStats.game_over) {
                     // When game is over, show both hand scores for final scoring
-                    statsText += `Final Hand Scores: P0: ${gameStats.hand_scores[0]}, P1: ${gameStats.hand_scores[1]} | `;
+                    statsText += `Final Hand Scores: P1: ${gameStats.hand_scores[0]}, P2: ${gameStats.hand_scores[1]} | `;
                 } else {
                     // During game, only show current player's hand score
                     const currentPlayerScore = gameStats.hand_scores[gameState.current_player];
@@ -303,13 +303,13 @@
             }
 
 
-            const player0HandDiv = document.getElementById('player-0-hand');
             const player1HandDiv = document.getElementById('player-1-hand');
-            player0HandDiv.innerHTML = `Player 0: `;
+            const player2HandDiv = document.getElementById('player-2-hand');
             player1HandDiv.innerHTML = `Player 1: `;
+            player2HandDiv.innerHTML = `Player 2: `;
 
             gameState.hands.forEach((hand, playerIndex) => {
-                const handDiv = playerIndex === 0 ? player0HandDiv : player1HandDiv;
+                const handDiv = playerIndex === 0 ? player1HandDiv : player2HandDiv;
                 hand.forEach(card => {
                     const cardImg = document.createElement('img');
                     cardImg.src = `/assets/cards/${card}.png`;
@@ -420,8 +420,8 @@
         <div class="text-xs text-gray-600 text-center mb-4">
             💡 <strong>Hand Score</strong>: Total value of cards in your hand (2-10 = face value, J/Q/K = 10, A = 1)
         </div>
-        <div id="player-0-hand" class="hand"></div>
         <div id="player-1-hand" class="hand"></div>
+        <div id="player-2-hand" class="hand"></div>
         <div style="display: flex; justify-content: center;">
             <div id="stock-pile" class="pile"></div>
             <div id="discard-pile" class="pile"></div>

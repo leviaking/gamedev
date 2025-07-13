@@ -14,7 +14,7 @@ Be the first player to get rid of all your cards by forming valid melds and disc
 ## **Setup**
 1. **Deal 7 cards** to each player
 2. **Place remaining cards** face-down as the "Stock Pile"
-3. **Start with Player 0** - the game begins!
+3. **Start with Player 1** - the game begins!
 
 ## **How to Play**
 
